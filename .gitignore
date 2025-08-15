@@ -10,6 +10,9 @@ client/.vite/
 client/.env
 client/.env.local
 server/.env
+*.env
+*.env.development
+*.env.production
 
 # OS
 .DS_Store
