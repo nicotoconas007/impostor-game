@@ -15,6 +15,7 @@ function App() {
   const [lockMsg, setLockMsg] = useState('')
   const [impostorWins, setImpostorWins] = useState(null)
   const [isRevealing, setIsRevealing] = useState(false)
+  const [tieMessage, setTieMessage] = useState('')
 
   useEffect(() => {
     socket.on('connect', () => {})
@@ -60,6 +61,12 @@ function App() {
         setImpostorWins(null)
         setScreen('lobby')
       }, 5000)
+    })
+    socket.on('vote_tie', (payload) => {
+      setTieMessage(payload.message)
+      setTimeout(() => {
+        setTieMessage('')
+      }, 4000)
     })
     return () => {
       socket.off()
@@ -543,6 +550,22 @@ function App() {
                         </Typography>
                       </CardContent>
                     </Card>
+                  )}
+                  
+                  {/* Mensaje de empate */}
+                  {tieMessage && (
+                    <Box mt={2}>
+                      <Alert severity="warning" sx={{ 
+                        borderRadius: 3,
+                        '& .MuiAlert-icon': {
+                          fontSize: '1.5rem'
+                        }
+                      }}>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                          ⚖️ {tieMessage}
+                        </Typography>
+                      </Alert>
+                    </Box>
                   )}
                   
                   {/* Votos emitidos */}
