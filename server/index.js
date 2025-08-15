@@ -2,6 +2,8 @@ const express = require('express')
 const http = require('http')
 const cors = require('cors')
 const { Server } = require('socket.io')
+const fs = require('fs')
+const path = require('path')
 
 const app = express()
 app.use(cors())
@@ -11,8 +13,16 @@ const io = new Server(server, {
 	cors: { origin: '*'}
 })
 
-// Palabras de ejemplo
-const WORDS = ['Pizza', 'Hamburguesa', 'Empanada', 'Sushi', 'Taco', 'Arepa']
+// Cargar palabras desde JSON
+let WORDS = []
+try {
+	const wordsData = JSON.parse(fs.readFileSync(path.join(__dirname, 'words.json'), 'utf8'))
+	WORDS = wordsData.words
+	console.log(`Loaded ${WORDS.length} words from words.json`)
+} catch (error) {
+	console.error('Error loading words.json, using fallback words:', error)
+	WORDS = ['Pizza', 'Hamburguesa', 'Empanada', 'Sushi', 'Taco', 'Arepa']
+}
 
 // Estado en memoria por sala
 const rooms = new Map()
@@ -103,14 +113,32 @@ io.on('connection', (socket) => {
 			for (const [, votedId] of room.votes) {
 				tally[votedId] = (tally[votedId] || 0) + 1
 			}
-			let eliminatedId = null
-			let maxVotes = -1
-			for (const [id, count] of Object.entries(tally)) {
-				if (count > maxVotes) {
-					maxVotes = count
-					eliminatedId = id
-				}
+			
+			// Encontrar el máximo de votos
+			let maxVotes = Math.max(...Object.values(tally))
+			
+			// Encontrar todos los jugadores con el máximo de votos
+			const playersWithMaxVotes = Object.entries(tally)
+				.filter(([id, count]) => count === maxVotes)
+				.map(([id, count]) => id)
+			
+			// Si hay empate, volver a votar
+			if (playersWithMaxVotes.length > 1) {
+				room.votes.clear()
+				const tiedPlayerNames = playersWithMaxVotes
+					.map(id => room.players.get(id)?.name)
+					.filter(Boolean)
+					
+				io.to(roomId).emit('vote_tie', {
+					tiedPlayers: tiedPlayerNames,
+					message: `Empate entre: ${tiedPlayerNames.join(', ')}. ¡Voten de nuevo!`
+				})
+				io.to(roomId).emit('vote_state', { votes: {} })
+				return
 			}
+			
+			// Si no hay empate, eliminar al jugador con más votos
+			const eliminatedId = playersWithMaxVotes[0]
 			const eliminated = room.players.get(eliminatedId)
 			const impostor = room.players.get(room.impostorId)
 			const eliminatedWasImpostor = eliminatedId === room.impostorId
